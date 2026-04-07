@@ -2,10 +2,10 @@
 
 import { motion } from "framer-motion";
 
-export function ReadinessGauge({ value, size = 140 }: { value: number; size?: number }) {
+export function ReadinessGauge({ value, size = 140 }: { value: number | null; size?: number }) {
   const r = (size - 16) / 2;
   const c = 2 * Math.PI * r;
-  const offset = c - (value / 100) * c;
+  const offset = value == null ? c : c - (value / 100) * c;
 
   return (
     <div className="relative flex items-center justify-center" style={{ width: size, height: size }}>
@@ -23,7 +23,7 @@ export function ReadinessGauge({ value, size = 140 }: { value: number; size?: nu
           cy={size / 2}
           r={r}
           fill="none"
-          className="stroke-primary"
+          className={value == null ? "stroke-muted/40" : "stroke-primary"}
           strokeWidth="10"
           strokeLinecap="round"
           strokeDasharray={c}
@@ -33,7 +33,9 @@ export function ReadinessGauge({ value, size = 140 }: { value: number; size?: nu
         />
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center">
-        <span className="text-3xl font-bold tabular-nums tracking-tight">{value}</span>
+        <span className="text-3xl font-bold tabular-nums tracking-tight text-muted-foreground">
+          {value == null ? "—" : value}
+        </span>
         <span className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground">Ready</span>
       </div>
     </div>

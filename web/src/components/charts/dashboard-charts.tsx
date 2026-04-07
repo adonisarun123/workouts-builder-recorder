@@ -14,6 +14,27 @@ import {
   YAxis,
 } from "recharts";
 
+/** Shown when there is no data to plot (dashboard empty state). */
+export function ChartEmptyPlaceholder({
+  title = "No data yet",
+  subtitle = "Log workouts and metrics to see charts here.",
+  minHeight = 180,
+}: {
+  title?: string;
+  subtitle?: string;
+  minHeight?: number;
+}) {
+  return (
+    <div
+      className="flex w-full flex-col items-center justify-center rounded-2xl border border-dashed border-border/60 bg-muted/5 px-6 text-center"
+      style={{ minHeight }}
+    >
+      <p className="text-sm font-medium text-muted-foreground">{title}</p>
+      <p className="mt-1 max-w-xs text-xs text-muted-foreground/80">{subtitle}</p>
+    </div>
+  );
+}
+
 const strengthData = [
   { w: "W1", squat: 92, bench: 68, row: 55 },
   { w: "W2", squat: 95, bench: 70, row: 57 },
