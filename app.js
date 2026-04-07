@@ -24,28 +24,101 @@ const els = {
   adminCatalogPanel: document.getElementById("adminCatalogPanel"),
 };
 
-function setAuthState(message) {
+const authFeedbackClass = {
+  error: "auth-feedback is-error",
+  success: "auth-feedback is-success",
+  info: "auth-feedback is-info",
+  muted: "auth-feedback is-muted",
+};
+
+function setAuthState(message, kind = "info") {
   els.authState.textContent = message;
+  els.authState.className = authFeedbackClass[kind] || authFeedbackClass.info;
 }
 
 function showEl(el, on) {
   el.classList.toggle("hidden", !on);
 }
 
-async function api(path, options = {}) {
-  const response = await fetch(path, options);
-  const text = await response.text();
+function stripHtmlPreview(raw, max = 240) {
+  if (!raw) return "";
+  const t = String(raw).replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
+  return t.replace(/\s+/g, " ").trim().slice(0, max);
+}
+
+function messageFromPayload(data, status) {
+  const parts = [data.error, data.detail].map((p) => (p == null ? "" : String(p).trim())).filter(Boolean);
+  if (parts.length) return parts.length === 1 ? parts[0] : `${parts[0]}. ${parts[1]}`;
+  return `Something went wrong (${status})`;
+}
+
+function errorPayloadFromText(response, text) {
   let data = {};
-  try {
-    data = text ? JSON.parse(text) : {};
-  } catch {
-    data = { error: text || "Request failed" };
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      const preview = stripHtmlPreview(text);
+      data = {
+        error: `Server error (${response.status})`,
+        detail: preview || undefined,
+      };
+    }
   }
-  if (!response.ok) {
-    const err = new Error(data.error || data.detail || "Request failed");
-    err.code = data.code;
+  if (!data.error && !data.detail) {
+    if (response.status === 404) {
+      data = {
+        error: "API not found on this address",
+        detail:
+          "Use the app URL from your server (e.g. http://localhost:3000 after npm run dev), not an opened HTML file or a different port.",
+      };
+    } else {
+      data = { error: `Request failed (${response.status} ${response.statusText || ""})`.trim(), detail: "" };
+    }
+  }
+  return data;
+}
+
+async function api(path, options = {}) {
+  let response;
+  try {
+    response = await fetch(path, options);
+  } catch (e) {
+    const isNetwork =
+      e.name === "TypeError" ||
+      /failed to fetch|networkerror|load failed|network request failed/i.test(String(e.message));
+    const msg = isNetwork
+      ? "Cannot reach the server. Start it with npm run dev, then open http://localhost:3000 in the browser (not a file:// link)."
+      : e.message || "Network error";
+    const err = new Error(msg);
+    err.network = isNetwork;
     throw err;
   }
+
+  const text = await response.text();
+  let data = {};
+
+  if (text) {
+    try {
+      data = JSON.parse(text);
+    } catch {
+      if (response.ok) {
+        throw new Error("The server returned invalid data. Check that you are using the correct app URL.");
+      }
+      data = errorPayloadFromText(response, text);
+    }
+  } else if (!response.ok) {
+    data = errorPayloadFromText(response, "");
+  }
+
+  if (!response.ok) {
+    const err = new Error(messageFromPayload(data, response.status));
+    err.code = data.code;
+    err.status = response.status;
+    err.detail = data.detail;
+    throw err;
+  }
+
   return data;
 }
 
@@ -163,7 +236,7 @@ async function loadCatalog() {
   fillSelect(document.getElementById("sexSlug"), by.sex, "Prefer not to say");
   fillSelect(document.getElementById("occupationActivitySlug"), by.occupation_activity, "Select activity level");
   renderEquipmentAndFocus();
-  setAuthState(authToken ? "Checking session…" : "Not signed in.");
+  setAuthState(authToken ? "Checking session…" : "Not signed in.", "muted");
 }
 
 function applyProfileToForm(profile) {
@@ -215,7 +288,7 @@ async function refreshMe() {
     showEl(els.dashboardSection, false);
     showEl(els.adminPanel, false);
     showEl(els.adminCatalogPanel, false);
-    setAuthState("Not signed in.");
+    setAuthState("Not signed in.", "muted");
     return;
   }
   try {
@@ -241,19 +314,19 @@ async function refreshMe() {
       await refreshAdminCatalog();
     }
 
-    setAuthState(`Signed in as ${data.user.full_name} (${data.user.account_status}).`);
+    setAuthState(`Signed in as ${data.user.full_name} (${data.user.account_status}).`, "success");
   } catch (e) {
     if (e.message === "Invalid token" || e.message === "Missing token") {
       authToken = "";
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       currentUser = null;
-      setAuthState("Session expired. Please sign in again.");
+      setAuthState("Session expired. Please sign in again.", "error");
       showEl(els.appPanel, false);
       showEl(els.adminPanel, false);
       showEl(els.adminCatalogPanel, false);
     } else {
-      setAuthState(`Could not load profile: ${e.message}`);
+      setAuthState(`Could not load profile: ${e.message}`, "error");
     }
   }
 }
@@ -287,7 +360,7 @@ async function refreshAdminQueue() {
       els.adminTable.appendChild(tr);
     });
   } catch (e) {
-    setAuthState(`Admin queue error: ${e.message}`);
+    setAuthState(`Admin queue error: ${e.message}`, "error");
   }
 }
 
@@ -423,7 +496,7 @@ async function refreshAdminCatalog() {
       exBody.appendChild(tr);
     });
   } catch (e) {
-    setAuthState(`Catalog admin error: ${e.message}`);
+    setAuthState(`Catalog admin error: ${e.message}`, "error");
   }
 }
 
@@ -471,7 +544,7 @@ async function refreshSessions() {
     sessions.push(...data);
     renderDashboard();
   } catch (e) {
-    if (e.code !== "PENDING_APPROVAL") setAuthState(`Could not load sessions: ${e.message}`);
+    if (e.code !== "PENDING_APPROVAL") setAuthState(`Could not load sessions: ${e.message}`, "error");
   }
 }
 
@@ -487,24 +560,32 @@ function evaluateFallbackFeedback(session) {
 
 document.getElementById("registerBtn").addEventListener("click", async () => {
   els.registerNotice.classList.add("hidden");
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  const fullName = document.getElementById("authName").value.trim();
+  if (!email || !password) {
+    setAuthState("Enter your email and password to create an account.", "error");
+    return;
+  }
+  if (!fullName) {
+    setAuthState("Enter your full name — it is required for registration.", "error");
+    return;
+  }
   try {
     const data = await api("/api/auth/register", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        fullName: document.getElementById("authName").value,
-        email: document.getElementById("authEmail").value,
-        password: document.getElementById("authPassword").value,
-      }),
+      body: JSON.stringify({ fullName, email, password }),
     });
     if (data.pendingApproval) {
       authToken = "";
       localStorage.removeItem("token");
       localStorage.removeItem("user");
       currentUser = null;
-      els.registerNotice.textContent = data.message || "Check with an admin for approval.";
+      els.registerNotice.textContent = data.message || "An administrator will need to approve your account before you can sign in.";
+      els.registerNotice.className = "notice notice-positive";
       els.registerNotice.classList.remove("hidden");
-      setAuthState("Registered — awaiting approval before you can sign in.");
+      setAuthState("Registered — awaiting approval before you can sign in.", "success");
       showEl(els.appPanel, false);
       return;
     }
@@ -512,39 +593,42 @@ document.getElementById("registerBtn").addEventListener("click", async () => {
     currentUser = data.user;
     localStorage.setItem("token", authToken);
     localStorage.setItem("user", JSON.stringify(currentUser));
-    setAuthState(`Signed in as ${currentUser.full_name}.`);
+    setAuthState(`Signed in as ${currentUser.full_name}.`, "success");
     await refreshMe();
     await refreshSessions();
   } catch (e) {
-    setAuthState(e.message);
+    setAuthState(e.message, "error");
   }
 });
 
 document.getElementById("loginBtn").addEventListener("click", async () => {
   els.registerNotice.classList.add("hidden");
+  const email = document.getElementById("authEmail").value.trim();
+  const password = document.getElementById("authPassword").value;
+  if (!email || !password) {
+    setAuthState("Enter your email and password to sign in.", "error");
+    return;
+  }
   try {
     const data = await api("/api/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        email: document.getElementById("authEmail").value,
-        password: document.getElementById("authPassword").value,
-      }),
+      body: JSON.stringify({ email, password }),
     });
     authToken = data.token;
     currentUser = data.user;
     localStorage.setItem("token", authToken);
     localStorage.setItem("user", JSON.stringify(currentUser));
-    setAuthState(`Signed in as ${currentUser.full_name}.`);
+    setAuthState(`Signed in as ${currentUser.full_name}.`, "success");
     await refreshMe();
     await refreshSessions();
   } catch (e) {
     if (e.code === "PENDING_APPROVAL") {
-      setAuthState("Your account is still waiting for administrator approval.");
+      setAuthState("Your account is still waiting for administrator approval.", "error");
     } else if (e.code === "REJECTED") {
-      setAuthState("This account was not approved. Contact your administrator if this is a mistake.");
+      setAuthState("This account was not approved. Contact your administrator if this is a mistake.", "error");
     } else {
-      setAuthState(e.message);
+      setAuthState(e.message, "error");
     }
   }
 });
@@ -556,7 +640,7 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   localStorage.removeItem("user");
   plan.length = 0;
   els.registerNotice.classList.add("hidden");
-  setAuthState("Signed out.");
+  setAuthState("Signed out.", "muted");
   showEl(els.appPanel, false);
   showEl(els.workPanel, false);
   showEl(els.planSection, false);
@@ -790,9 +874,12 @@ function setDefaultReadinessInputs() {
       await refreshMe();
       await refreshSessions();
     } else {
-      setAuthState("Not signed in.");
+      setAuthState("Not signed in.", "muted");
     }
   } catch (e) {
-    setAuthState(`Catalog failed to load: ${e.message}. Is the API running and the database migrated?`);
+    setAuthState(
+      `Could not load catalog: ${e.message} If the server is running, confirm the database is set up (schema, migrate, seed) and NEON_DATABASE_URL is valid.`,
+      "error"
+    );
   }
 })();

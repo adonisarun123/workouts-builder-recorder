@@ -8,29 +8,49 @@
   </head>
   <body>
     <header class="topbar">
-      <h1>WorkoutOS</h1>
-      <p class="subtitle">Catalog-driven workout plans, full profile onboarding, session logging, and admin-approved accounts.</p>
+      <div class="topbar-inner">
+        <h1>WorkoutOS</h1>
+        <p class="subtitle">Personal workout plans, session logging, and progress you can trust.</p>
+      </div>
     </header>
 
     <main class="container">
-      <section class="card" id="auth">
-        <h2>Account</h2>
-        <p class="muted small">
-          New users register and wait for approval. Bootstrap the first admin with <code>npm run bootstrap-admin</code> (see <code>.env.example</code>) or list
-          emails in <code>ADMIN_EMAILS</code> for instant approval on register.
-        </p>
-        <div class="grid two">
-          <label>Full name (register) <input id="authName" type="text" autocomplete="name" /></label>
-          <label>Email <input id="authEmail" type="email" autocomplete="username" /></label>
-          <label>Password <input id="authPassword" type="password" autocomplete="current-password" /></label>
-          <div class="row">
-            <button type="button" id="registerBtn">Register</button>
-            <button type="button" id="loginBtn">Log in</button>
-            <button type="button" id="logoutBtn" class="secondary">Log out</button>
+      <section class="card auth-card" id="auth">
+        <h2 class="auth-title">Welcome</h2>
+        <p class="auth-lead">Sign in to train, or create an account. New accounts are reviewed by an admin before first login.</p>
+
+        <div class="auth-form">
+          <label class="auth-label">
+            <span class="auth-label-text">Email</span>
+            <input id="authEmail" type="email" autocomplete="username" placeholder="you@example.com" />
+          </label>
+          <label class="auth-label">
+            <span class="auth-label-text">Password</span>
+            <input id="authPassword" type="password" autocomplete="current-password" placeholder="••••••••" />
+          </label>
+          <label class="auth-label">
+            <span class="auth-label-text">Full name <span class="auth-hint">(only when creating an account)</span></span>
+            <input id="authName" type="text" autocomplete="name" placeholder="Your name" />
+          </label>
+
+          <div class="auth-actions">
+            <button type="button" id="loginBtn" class="btn btn-primary">Log in</button>
+            <button type="button" id="registerBtn" class="btn btn-secondary">Create account</button>
           </div>
+          <button type="button" id="logoutBtn" class="btn btn-ghost btn-block">Sign out</button>
         </div>
-        <p id="authState" class="muted">Loading catalog…</p>
-        <p id="registerNotice" class="notice hidden"></p>
+
+        <div id="authState" class="auth-feedback is-muted" role="status" aria-live="polite">Loading…</div>
+        <p id="registerNotice" class="notice hidden" role="status"></p>
+
+        <details class="dev-hint">
+          <summary>Developer / self-hosting setup</summary>
+          <p class="muted small">
+            Run the API with <code>npm run dev</code> and open this page at <code>http://localhost:3000</code> (not as a saved file). First admin:
+            <code>npm run bootstrap-admin</code> with <code>BOOTSTRAP_ADMIN_*</code> in <code>.env</code>, or add emails to <code>ADMIN_EMAILS</code>. See
+            <code>.env.example</code>.
+          </p>
+        </details>
       </section>
 
       <section class="card hidden" id="adminPanel">

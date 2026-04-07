@@ -298,6 +298,15 @@ function mapCatalog(rows) {
   return by;
 }
 
+app.get("/api/health", async (_req, res) => {
+  try {
+    await pool.query("SELECT 1");
+    res.json({ ok: true, database: true });
+  } catch (e) {
+    res.status(503).json({ ok: false, database: false, error: "Database unreachable", detail: e.message });
+  }
+});
+
 app.get("/api/catalog", async (_req, res) => {
   try {
     const opts = (
@@ -363,45 +372,58 @@ app.post("/api/auth/register", async (req, res) => {
       message: "Registration received. An administrator must approve your account before you can sign in.",
     });
   } catch (error) {
-    res.status(400).json({ error: "Registration failed", detail: error.message });
+    if (error.code === "23505") {
+      return res.status(409).json({
+        error: "This email is already registered",
+        detail: "Try signing in with that email, or use a different address.",
+      });
+    }
+    const dbDown = ["ECONNREFUSED", "ENOTFOUND", "ETIMEDOUT"].includes(error.code) || /connection|connect|neon|timeout/i.test(String(error.message));
+    const status = dbDown ? 503 : 400;
+    const errMsg = dbDown ? "Cannot reach the database" : "Registration failed";
+    res.status(status).json({ error: errMsg, detail: error.message });
   }
 });
 
 app.post("/api/auth/login", async (req, res) => {
-  const { email, password } = req.body;
-  const normalized = (email || "").trim().toLowerCase();
-  const result = await pool.query(
-    `SELECT id, email, full_name, password_hash, role, account_status FROM users WHERE email=$1`,
-    [normalized]
-  );
-  const user = result.rows[0];
-  if (!user) return res.status(401).json({ error: "Invalid credentials" });
+  try {
+    const { email, password } = req.body;
+    const normalized = (email || "").trim().toLowerCase();
+    const result = await pool.query(
+      `SELECT id, email, full_name, password_hash, role, account_status FROM users WHERE email=$1`,
+      [normalized]
+    );
+    const user = result.rows[0];
+    if (!user) return res.status(401).json({ error: "Invalid credentials" });
 
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) return res.status(401).json({ error: "Invalid credentials" });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: "Invalid credentials" });
 
-  if (user.account_status === "pending") {
-    return res.status(403).json({ error: "Your account is pending admin approval.", code: "PENDING_APPROVAL" });
+    if (user.account_status === "pending") {
+      return res.status(403).json({ error: "Your account is pending admin approval.", code: "PENDING_APPROVAL" });
+    }
+    if (user.account_status === "rejected") {
+      return res.status(403).json({ error: "Your registration was not approved.", code: "REJECTED" });
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, account_status: user.account_status },
+      jwtSecret(),
+      { expiresIn: "7d" }
+    );
+    res.json({
+      token,
+      user: {
+        id: user.id,
+        email: user.email,
+        full_name: user.full_name,
+        role: user.role,
+        account_status: user.account_status,
+      },
+    });
+  } catch (e) {
+    res.status(503).json({ error: "Server unavailable", detail: e.message });
   }
-  if (user.account_status === "rejected") {
-    return res.status(403).json({ error: "Your registration was not approved.", code: "REJECTED" });
-  }
-
-  const token = jwt.sign(
-    { id: user.id, email: user.email, role: user.role, account_status: user.account_status },
-    jwtSecret(),
-    { expiresIn: "7d" }
-  );
-  res.json({
-    token,
-    user: {
-      id: user.id,
-      email: user.email,
-      full_name: user.full_name,
-      role: user.role,
-      account_status: user.account_status,
-    },
-  });
 });
 
 app.get("/api/me", auth, async (req, res) => {
