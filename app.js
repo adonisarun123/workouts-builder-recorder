@@ -40,10 +40,31 @@ function showEl(el, on) {
   el.classList.toggle("hidden", !on);
 }
 
+const STATIC_ONLY_HOST_HINT =
+  "This page is hosted without the WorkoutOS API. Deploy the full Node app (server.js) so /api/* routes exist — e.g. Railway, Render, or Fly.io — or run npm run dev locally. If your UI is on a different domain than the API, set window.WORKOUTOS_API_BASE in index.html to your API origin (no trailing slash).";
+
+function apiUrl(path) {
+  const base =
+    typeof window !== "undefined" && window.WORKOUTOS_API_BASE != null
+      ? String(window.WORKOUTOS_API_BASE).trim().replace(/\/$/, "")
+      : "";
+  const p = path.startsWith("/") ? path : `/${path}`;
+  return base ? `${base}${p}` : p;
+}
+
+function looksLikeStaticHost404Page(text) {
+  const s = String(text || "");
+  if (/:root\s*\{/.test(s)) return true;
+  if (/<!DOCTYPE\s+html/i.test(s) && /Page not found|404/i.test(s)) return true;
+  return false;
+}
+
 function stripHtmlPreview(raw, max = 240) {
   if (!raw) return "";
   const t = String(raw).replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<[^>]+>/g, " ");
-  return t.replace(/\s+/g, " ").trim().slice(0, max);
+  const out = t.replace(/\s+/g, " ").trim().slice(0, max);
+  if (/^:root|var\(--|colorRgbFacets/i.test(out)) return "";
+  return out;
 }
 
 function messageFromPayload(data, status) {
@@ -58,11 +79,22 @@ function errorPayloadFromText(response, text) {
     try {
       data = JSON.parse(text);
     } catch {
-      const preview = stripHtmlPreview(text);
-      data = {
-        error: `Server error (${response.status})`,
-        detail: preview || undefined,
-      };
+      if (response.status === 404 && looksLikeStaticHost404Page(text)) {
+        data = {
+          error: "No WorkoutOS API at this URL",
+          detail: STATIC_ONLY_HOST_HINT,
+        };
+      } else {
+        const preview = stripHtmlPreview(text);
+        data = {
+          error: `Server error (${response.status})`,
+          detail: preview || undefined,
+        };
+        if (!preview && response.status === 404) {
+          data.detail =
+            "Nothing handled /api/… on this host. Use the Node server URL or set window.WORKOUTOS_API_BASE to your API.";
+        }
+      }
     }
   }
   if (!data.error && !data.detail) {
@@ -70,7 +102,7 @@ function errorPayloadFromText(response, text) {
       data = {
         error: "API not found on this address",
         detail:
-          "Use the app URL from your server (e.g. http://localhost:3000 after npm run dev), not an opened HTML file or a different port.",
+          "Open the app from the same host as server.js (e.g. http://localhost:3000), or configure WORKOUTOS_API_BASE if the API is elsewhere.",
       };
     } else {
       data = { error: `Request failed (${response.status} ${response.statusText || ""})`.trim(), detail: "" };
@@ -82,13 +114,13 @@ function errorPayloadFromText(response, text) {
 async function api(path, options = {}) {
   let response;
   try {
-    response = await fetch(path, options);
+    response = await fetch(apiUrl(path), options);
   } catch (e) {
     const isNetwork =
       e.name === "TypeError" ||
       /failed to fetch|networkerror|load failed|network request failed/i.test(String(e.message));
     const msg = isNetwork
-      ? "Cannot reach the server. Start it with npm run dev, then open http://localhost:3000 in the browser (not a file:// link)."
+      ? `Cannot reach the API at ${apiUrl("/api/health")}. Start the Node server (npm run dev), fix the URL, or set window.WORKOUTOS_API_BASE if the UI is on another domain.`
       : e.message || "Network error";
     const err = new Error(msg);
     err.network = isNetwork;
@@ -877,9 +909,10 @@ function setDefaultReadinessInputs() {
       setAuthState("Not signed in.", "muted");
     }
   } catch (e) {
-    setAuthState(
-      `Could not load catalog: ${e.message} If the server is running, confirm the database is set up (schema, migrate, seed) and NEON_DATABASE_URL is valid.`,
-      "error"
-    );
+    const extra =
+      /No WorkoutOS API|WORKOUTOS_API_BASE|static hosting|another domain/i.test(e.message)
+        ? ""
+        : " If the API is running, check NEON_DATABASE_URL and run db schema + migrate + seed.";
+    setAuthState(`Could not load catalog: ${e.message}${extra}`, "error");
   }
 })();
