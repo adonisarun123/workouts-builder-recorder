@@ -17,7 +17,7 @@ Same URL serves the SPA and `/api/*`.
    - `JWT_SECRET`
    - Optional: `ADMIN_EMAILS`, `BOOTSTRAP_*`, SMTP vars (see `.env.example`).
 6. After first deploy, run **one-off shell** or local machine against production DB:
-   - `npm run migrate`
+   - `npm run migrate` (on an **empty** database this applies `db/schema.sql` first, then `db/migrations/*`)
    - `npm run seed`
    - `npm run bootstrap-admin` (or rely on `ADMIN_EMAILS` on register).
 
