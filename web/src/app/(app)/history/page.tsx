@@ -6,6 +6,8 @@ import { CalendarDays, List, TrendingUp } from "lucide-react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const entries = [
@@ -29,6 +31,7 @@ export default function HistoryPage() {
   const [range, setRange] = useState("30");
   const [type, setType] = useState("all");
   const [perf, setPerf] = useState("any");
+  const [dayDialog, setDayDialog] = useState<{ iso: string; items: (typeof entries)[number][] } | null>(null);
 
   const byDate = useMemo(() => {
     const m: Record<string, (typeof entries)[0][]> = {};
@@ -47,6 +50,12 @@ export default function HistoryPage() {
     const iso = `${cursor.getFullYear()}-${String(cursor.getMonth() + 1).padStart(2, "0")}-${String(dayNum).padStart(2, "0")}`;
     return { key: iso, empty: false as const, dayNum, iso };
   });
+
+  function openDay(iso: string) {
+    const items = byDate[iso] ?? [];
+    if (items.length === 0) return;
+    setDayDialog({ iso, items });
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -99,7 +108,7 @@ export default function HistoryPage() {
         </div>
       </GlassCard>
 
-      <Tabs defaultValue="calendar" className="space-y-6">
+      <Tabs defaultValue="calendar" className="w-full space-y-6">
         <TabsList className="h-auto w-full justify-start gap-1 rounded-2xl bg-muted/40 p-1 sm:w-auto">
           <TabsTrigger value="calendar" className="gap-2 rounded-xl data-[state=active]:shadow-sm">
             <CalendarDays className="size-4" />
@@ -111,7 +120,7 @@ export default function HistoryPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="calendar" className="space-y-4">
+        <TabsContent value="calendar" className="mt-0 w-full space-y-4 focus-visible:outline-none">
           <GlassCard className="p-4 sm:p-6">
             <div className="flex items-center justify-between gap-2">
               <h2 className="text-sm font-semibold">
@@ -141,6 +150,7 @@ export default function HistoryPage() {
                 </button>
               </div>
             </div>
+            <p className="mt-2 text-xs text-muted-foreground">Days with a dot have logged workouts — tap to view details.</p>
             <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
               {["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"].map((d) => (
                 <div key={d}>{d}</div>
@@ -155,11 +165,17 @@ export default function HistoryPage() {
                     key={c.key}
                     type="button"
                     whileTap={{ scale: 0.97 }}
-                    className={cn(
-                      "flex aspect-square flex-col items-center justify-center rounded-2xl border text-xs font-medium transition-colors",
+                    onClick={() => openDay(c.iso)}
+                    aria-label={
                       byDate[c.iso]?.length
-                        ? "border-primary/40 bg-primary/10 text-primary"
-                        : "border-border/50 bg-muted/20 text-muted-foreground hover:bg-muted/40"
+                        ? `View workouts on ${c.iso}`
+                        : `No workouts on ${c.iso}`
+                    }
+                    className={cn(
+                      "flex aspect-square flex-col items-center justify-center rounded-2xl border text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40",
+                      byDate[c.iso]?.length
+                        ? "cursor-pointer border-primary/40 bg-primary/10 text-primary hover:bg-primary/15"
+                        : "cursor-default border-border/50 bg-muted/20 text-muted-foreground"
                     )}
                   >
                     <span>{c.dayNum}</span>
@@ -171,7 +187,7 @@ export default function HistoryPage() {
           </GlassCard>
         </TabsContent>
 
-        <TabsContent value="list" className="space-y-3">
+        <TabsContent value="list" className="mt-0 w-full space-y-3 focus-visible:outline-none">
           {entries.map((e, i) => (
             <motion.div
               key={e.id}
@@ -206,6 +222,42 @@ export default function HistoryPage() {
           ))}
         </TabsContent>
       </Tabs>
+
+      <Dialog open={dayDialog !== null} onOpenChange={(open) => !open && setDayDialog(null)}>
+        <DialogContent className="max-w-md rounded-3xl border-border/60" showCloseButton>
+          <DialogHeader>
+            <DialogTitle>
+              {dayDialog
+                ? new Date(dayDialog.iso + "T12:00:00").toLocaleDateString(undefined, {
+                    weekday: "long",
+                    month: "long",
+                    day: "numeric",
+                    year: "numeric",
+                  })
+                : ""}
+            </DialogTitle>
+          </DialogHeader>
+          {dayDialog ? (
+            <div className="space-y-3">
+              {dayDialog.items.map((w) => (
+                <div key={w.id} className="rounded-2xl border border-border/50 bg-muted/10 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="font-semibold">{w.name}</p>
+                    <Badge variant="secondary" className="rounded-lg font-mono tabular-nums">
+                      {w.pct}%
+                    </Badge>
+                  </div>
+                  <p className="mt-2 text-sm text-muted-foreground">{w.lifts}</p>
+                  <p className="mt-2 text-xs text-muted-foreground">Duration · {w.duration}</p>
+                </div>
+              ))}
+              <Button type="button" variant="outline" className="w-full rounded-2xl" onClick={() => setDayDialog(null)}>
+                Close
+              </Button>
+            </div>
+          ) : null}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

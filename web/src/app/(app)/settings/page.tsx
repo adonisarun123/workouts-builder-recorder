@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { useUnits } from "@/hooks/use-units";
 
 const NOTIF_STORAGE_KEY = "workoutos_notification_prefs";
 
@@ -24,7 +25,7 @@ const defaultNotificationPrefs: NotificationPrefs = {
 };
 
 export default function SettingsPage() {
-  const [units, setUnits] = useState<"imperial" | "metric">("imperial");
+  const { units, setUnits } = useUnits();
   const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(defaultNotificationPrefs);
   const [notifHydrated, setNotifHydrated] = useState(false);
 
@@ -106,6 +107,9 @@ export default function SettingsPage() {
 
           <div>
             <h2 className="text-sm font-semibold">Units</h2>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Used for workout load labels and body measurements (lb/in vs kg/cm). Saved in this browser.
+            </p>
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 type="button"

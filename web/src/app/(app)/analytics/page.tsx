@@ -1,25 +1,8 @@
 "use client";
 
-import { Fragment } from "react";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  BodyWeightChart,
-  ReadinessVsPerformanceChart,
-  StrengthProgressChart,
-  VolumeByMuscleChart,
-} from "@/components/charts/dashboard-charts";
-
-const days = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-const groups = ["Legs", "Push", "Pull", "Core", "Arms"];
-/** 0–1 intensity for demo heatmap */
-const heat: number[][] = [
-  [0.35, 0.55, 0.72, 0.5, 0.4, 0.25, 0.38],
-  [0.45, 0.68, 0.82, 0.65, 0.55, 0.42, 0.48],
-  [0.3, 0.52, 0.62, 0.78, 0.7, 0.5, 0.44],
-  [0.22, 0.4, 0.55, 0.65, 0.58, 0.35, 0.3],
-  [0.28, 0.48, 0.6, 0.52, 0.45, 0.32, 0.26],
-];
+import { ChartEmptyPlaceholder } from "@/components/charts/dashboard-charts";
 
 export default function AnalyticsPage() {
   return (
@@ -29,8 +12,8 @@ export default function AnalyticsPage() {
         <p className="mt-1 text-muted-foreground">Depth when you want it — still readable at a glance.</p>
       </div>
 
-      <Tabs defaultValue="strength" className="space-y-6">
-        <TabsList className="h-auto flex-wrap gap-1 rounded-2xl bg-muted/40 p-1">
+      <Tabs defaultValue="strength" className="w-full space-y-6">
+        <TabsList className="h-auto w-full flex-wrap justify-start gap-1 rounded-2xl bg-muted/40 p-1 sm:w-fit">
           <TabsTrigger value="strength" className="rounded-xl data-[state=active]:shadow-sm">
             Strength
           </TabsTrigger>
@@ -45,73 +28,68 @@ export default function AnalyticsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="strength" className="space-y-4">
+        <TabsContent value="strength" className="mt-0 w-full space-y-4 focus-visible:outline-none">
           <GlassCard hoverLift className="p-5">
             <h2 className="font-semibold">Exercise progression</h2>
-            <p className="text-xs text-muted-foreground">Demo series</p>
-            <div className="mt-4 h-[240px]">
-              <StrengthProgressChart />
+            <p className="text-xs text-muted-foreground">Lines appear when you log consistent sets over time.</p>
+            <div className="mt-4 h-[240px] w-full">
+              <ChartEmptyPlaceholder
+                title="No progression data"
+                subtitle="Complete workouts and log weights to chart strength trends (e.g. estimated load by week)."
+                minHeight={240}
+              />
             </div>
           </GlassCard>
         </TabsContent>
 
-        <TabsContent value="volume" className="space-y-4">
+        <TabsContent value="volume" className="mt-0 w-full space-y-4 focus-visible:outline-none">
           <GlassCard hoverLift className="p-5">
             <h2 className="font-semibold">Weekly volume</h2>
-            <div className="mt-4 h-[240px]">
-              <VolumeByMuscleChart />
+            <p className="text-xs text-muted-foreground">Volume by muscle group from your session history.</p>
+            <div className="mt-4 h-[240px] w-full">
+              <ChartEmptyPlaceholder
+                title="No volume history"
+                subtitle="Log sessions with exercises to see weekly volume bars."
+                minHeight={240}
+              />
             </div>
           </GlassCard>
         </TabsContent>
 
-        <TabsContent value="recovery" className="space-y-4">
+        <TabsContent value="recovery" className="mt-0 w-full space-y-4 focus-visible:outline-none">
           <GlassCard hoverLift className="p-5">
             <h2 className="font-semibold">Readiness vs performance</h2>
-            <p className="text-xs text-muted-foreground">Scatter — each point is a session</p>
-            <div className="mt-4 h-[240px]">
-              <ReadinessVsPerformanceChart />
+            <p className="text-xs text-muted-foreground">Each point is a session once readiness and scores exist.</p>
+            <div className="mt-4 h-[240px] w-full">
+              <ChartEmptyPlaceholder
+                title="No readiness data"
+                subtitle="Log daily readiness and workouts to plot this scatter."
+                minHeight={240}
+              />
             </div>
           </GlassCard>
           <GlassCard hoverLift className="p-5">
             <h2 className="font-semibold">Body weight</h2>
-            <div className="mt-4 h-[200px]">
-              <BodyWeightChart />
+            <div className="mt-4 h-[200px] w-full">
+              <ChartEmptyPlaceholder
+                title="No weight trend"
+                subtitle="Add weight entries under Body metrics to see a trend line."
+                minHeight={200}
+              />
             </div>
           </GlassCard>
         </TabsContent>
 
-        <TabsContent value="adherence" className="space-y-4">
+        <TabsContent value="adherence" className="mt-0 w-full space-y-4 focus-visible:outline-none">
           <GlassCard hoverLift className="p-5">
             <h2 className="font-semibold">Muscle group heatmap</h2>
-            <p className="text-xs text-muted-foreground">Relative stimulus index (demo)</p>
-            <div className="mt-6 overflow-x-auto">
-              <div
-                className="grid gap-1.5"
-                style={{ gridTemplateColumns: `88px repeat(${days.length}, minmax(2rem, 1fr))` }}
-              >
-                <div />
-                {days.map((d) => (
-                  <div key={d} className="text-center text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {d}
-                  </div>
-                ))}
-                {groups.map((g, ri) => (
-                  <Fragment key={g}>
-                    <div className="flex items-center text-xs font-medium">{g}</div>
-                    {days.map((d, ci) => {
-                      const v = heat[ri]?.[ci] ?? 0.35;
-                      return (
-                        <div
-                          key={`${g}-${d}`}
-                          className="aspect-square rounded-xl border border-primary/25 bg-primary transition-transform hover:scale-105"
-                          style={{ opacity: 0.15 + v * 0.85 }}
-                          title={`${g} · ${d}`}
-                        />
-                      );
-                    })}
-                  </Fragment>
-                ))}
-              </div>
+            <p className="text-xs text-muted-foreground">Relative training stress by day once sessions are logged.</p>
+            <div className="mt-4">
+              <ChartEmptyPlaceholder
+                title="No heatmap yet"
+                subtitle="After several logged weeks, stimulus by muscle and day will appear here."
+                minHeight={200}
+              />
             </div>
           </GlassCard>
         </TabsContent>

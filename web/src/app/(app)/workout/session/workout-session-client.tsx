@@ -13,6 +13,8 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
+import { useUnits } from "@/hooks/use-units";
+import { massUnitLabel, weightStepKg } from "@/lib/units";
 
 type SetRow = { planned: string; weight: string; reps: string; rir: string; done: boolean };
 
@@ -63,6 +65,10 @@ const initialExercises: Exercise[] = [
 ];
 
 export function WorkoutSessionClient() {
+  const { units } = useUnits();
+  const massUnit = massUnitLabel(units);
+  const wStep = weightStepKg(units);
+
   const [exercises, setExercises] = useState(initialExercises);
   const [activeIdx, setActiveIdx] = useState(0);
   const [sessionStart] = useState(() => Date.now());
@@ -108,7 +114,8 @@ export function WorkoutSessionClient() {
         const sets = ex.sets.map((row, i) => {
           if (i !== si) return row;
           const w = Math.max(0, Number(row.weight || 0) + delta);
-          return { ...row, weight: String(w) };
+          const rounded = Math.round(w * 10) / 10;
+          return { ...row, weight: String(rounded) };
         });
         return { ...ex, sets };
       })
@@ -164,6 +171,7 @@ export function WorkoutSessionClient() {
             key={ex.id}
             type="button"
             onClick={() => setActiveIdx(i)}
+            aria-current={i === activeIdx ? "true" : undefined}
             className={cn(
               "shrink-0 rounded-2xl px-4 py-2 text-sm font-medium transition-colors",
               i === activeIdx ? "bg-primary text-primary-foreground" : "bg-muted/50 text-muted-foreground"
@@ -184,6 +192,8 @@ export function WorkoutSessionClient() {
         >
           <ExerciseCard
             exercise={active}
+            massUnit={massUnit}
+            weightStep={wStep}
             bumpWeight={bumpWeight}
             updateSet={updateSet}
             completeSet={completeSet}
@@ -191,20 +201,22 @@ export function WorkoutSessionClient() {
         </motion.div>
       </AnimatePresence>
 
-      <div className="hidden md:flex justify-between gap-4">
+      <div className="relative z-20 hidden md:flex justify-between gap-4">
         <Button
+          type="button"
           variant="outline"
           className="rounded-2xl"
           disabled={activeIdx === 0}
-          onClick={() => setActiveIdx((i) => i - 1)}
+          onClick={() => setActiveIdx((i) => Math.max(0, i - 1))}
         >
           Previous exercise
         </Button>
         <Button
-          variant="outline"
+          type="button"
+          variant="default"
           className="rounded-2xl"
           disabled={activeIdx >= exercises.length - 1}
-          onClick={() => setActiveIdx((i) => i + 1)}
+          onClick={() => setActiveIdx((i) => Math.min(exercises.length - 1, i + 1))}
         >
           Next exercise
         </Button>
@@ -258,6 +270,7 @@ export function WorkoutSessionClient() {
 
       <div className="fixed bottom-20 left-0 right-0 z-40 px-4 md:hidden">
         <Button
+          type="button"
           className="h-12 w-full rounded-2xl shadow-xl shadow-primary/30"
           onClick={() => {
             const ex = exercises[activeIdx];
@@ -276,11 +289,15 @@ export function WorkoutSessionClient() {
 
 function ExerciseCard({
   exercise,
+  massUnit,
+  weightStep,
   bumpWeight,
   updateSet,
   completeSet,
 }: {
   exercise: Exercise;
+  massUnit: string;
+  weightStep: number;
   bumpWeight: (exId: string, si: number, delta: number) => void;
   updateSet: (exId: string, si: number, field: keyof SetRow, value: string | boolean) => void;
   completeSet: (ex: Exercise, si: number) => void;
@@ -292,7 +309,7 @@ function ExerciseCard({
         <h2 className="mt-1 text-xl font-bold md:text-2xl">{exercise.name}</h2>
         <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <PlanChip label="Plan" value={exercise.planned} />
-          <PlanChip label="Target load" value={`${exercise.weight} kg`} />
+          <PlanChip label="Target load" value={`${exercise.weight} ${massUnit}`} />
           <PlanChip label="RIR" value={exercise.rir} />
           <PlanChip label="Rest" value={`${exercise.restSec}s`} />
         </div>
@@ -323,7 +340,7 @@ function ExerciseCard({
                       variant="outline"
                       size="icon-sm"
                       className="size-8 rounded-xl"
-                      onClick={() => bumpWeight(exercise.id, si, -2.5)}
+                      onClick={() => bumpWeight(exercise.id, si, -weightStep)}
                     >
                       <Minus className="size-3.5" />
                     </Button>
@@ -337,7 +354,7 @@ function ExerciseCard({
                       variant="outline"
                       size="icon-sm"
                       className="size-8 rounded-xl"
-                      onClick={() => bumpWeight(exercise.id, si, 2.5)}
+                      onClick={() => bumpWeight(exercise.id, si, weightStep)}
                     >
                       <Plus className="size-3.5" />
                     </Button>
@@ -360,6 +377,7 @@ function ExerciseCard({
                 <td className="py-3">
                   <div className="flex flex-wrap gap-1.5">
                     <Button
+                      type="button"
                       size="sm"
                       className="rounded-xl"
                       disabled={row.done}
@@ -368,7 +386,7 @@ function ExerciseCard({
                       <Check className="mr-1 size-3.5" />
                       Done
                     </Button>
-                    <Button size="sm" variant="ghost" className="rounded-xl text-muted-foreground">
+                    <Button type="button" size="sm" variant="ghost" className="rounded-xl text-muted-foreground">
                       Skip
                     </Button>
                   </div>

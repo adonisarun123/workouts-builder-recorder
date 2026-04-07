@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
+import { useUnits } from "@/hooks/use-units";
+import { lengthUnitLabel, massUnitLabel } from "@/lib/units";
 
 const STORAGE_KEY = "workoutos_body_metrics_v1";
 
@@ -38,20 +40,6 @@ const emptySnapshot = (): BodySnapshot => ({
   coachNote: "",
 });
 
-const METRICS: {
-  key: MetricKey;
-  label: string;
-  unit: string;
-  inputMode?: "decimal" | "numeric" | "text";
-}[] = [
-  { key: "weight", label: "Weight", unit: "lb", inputMode: "decimal" },
-  { key: "bodyFat", label: "Body fat", unit: "%", inputMode: "decimal" },
-  { key: "waist", label: "Waist", unit: "in", inputMode: "decimal" },
-  { key: "hips", label: "Hips", unit: "in", inputMode: "decimal" },
-  { key: "restingHr", label: "Resting HR", unit: "bpm", inputMode: "numeric" },
-  { key: "hrv", label: "HRV (avg)", unit: "ms", inputMode: "numeric" },
-];
-
 function parseStored(raw: string | null): BodySnapshot {
   const base = emptySnapshot();
   if (!raw) return base;
@@ -75,6 +63,20 @@ function parseStored(raw: string | null): BodySnapshot {
 }
 
 export default function BodyPage() {
+  const { units } = useUnits();
+  const metrics = useMemo(() => {
+    const mass = massUnitLabel(units);
+    const len = lengthUnitLabel(units);
+    return [
+      { key: "weight" as MetricKey, label: "Weight", unit: mass, inputMode: "decimal" as const },
+      { key: "bodyFat" as MetricKey, label: "Body fat", unit: "%", inputMode: "decimal" as const },
+      { key: "waist" as MetricKey, label: "Waist", unit: len, inputMode: "decimal" as const },
+      { key: "hips" as MetricKey, label: "Hips", unit: len, inputMode: "decimal" as const },
+      { key: "restingHr" as MetricKey, label: "Resting HR", unit: "bpm", inputMode: "numeric" as const },
+      { key: "hrv" as MetricKey, label: "HRV (avg)", unit: "ms", inputMode: "numeric" as const },
+    ];
+  }, [units]);
+
   const [data, setData] = useState<BodySnapshot>(emptySnapshot);
   const [hydrated, setHydrated] = useState(false);
 
@@ -122,7 +124,7 @@ export default function BodyPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {METRICS.map((m, i) => {
+        {metrics.map((m, i) => {
           const id = `body-${m.key}`;
           const trendId = `body-${m.key}-trend`;
           return (

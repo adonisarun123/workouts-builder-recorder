@@ -15,7 +15,8 @@ function Tabs({
       data-slot="tabs"
       data-orientation={orientation}
       className={cn(
-        "group/tabs flex gap-2 data-horizontal:flex-col",
+        // Horizontal tabs: stack list above panels (was broken — `data-horizontal` never matched Base UI’s `data-orientation`).
+        "group/tabs flex w-full flex-col gap-2 data-[orientation=vertical]:flex-row",
         className
       )}
       {...props}
