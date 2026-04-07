@@ -31,6 +31,22 @@ th, td { border-bottom: 1px solid #2b3c5b; padding: .55rem .4rem; text-align:lef
 .row { display:flex; gap:.6rem; flex-wrap: wrap; align-items:center; }
 .muted { color: var(--muted); }
 .tag-good{color:var(--good)} .tag-warn{color:var(--warn)} .tag-bad{color:var(--bad)}
+.hidden { display: none !important; }
+.small { font-size: 0.82rem; }
+.subhead { margin: 1rem 0 0.35rem; font-size: 1rem; }
+.notice { margin-top: 0.6rem; padding: 0.65rem 0.75rem; border-radius: 10px; background: #1a2744; border: 1px solid #4269a3; color: var(--text); }
+code { font-size: 0.85em; background: #0d1627; padding: 0.1rem 0.35rem; border-radius: 6px; border: 1px solid #324463; }
+button.secondary { background: #132038; border-color: #324463; }
+button.danger { background: #3a1a1a; border-color: #a34a4a; }
+.row.wrap { flex-wrap: wrap; }
+.checkbox-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.45rem 0.75rem; margin: 0.5rem 0 0.75rem; }
+.check-label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.88rem; cursor: pointer; }
+.block-label { display: grid; gap: 0.35rem; margin: 0.6rem 0; font-size: 0.88rem; }
+.inline-check { display: flex; align-items: center; gap: 0.45rem; margin: 0.6rem 0; font-size: 0.88rem; cursor: pointer; }
+textarea { border-radius: 10px; border: 1px solid #384b6d; background: #0d1627; color: var(--text); padding: 0.55rem 0.65rem; font-family: inherit; width: 100%; resize: vertical; }
+.admin-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.editor-panel { margin-top: 0.75rem; padding: 0.85rem; border-radius: 12px; border: 1px solid #324463; background: #0d1628; }
+.editor-title { margin: 0 0 0.5rem; font-size: 0.95rem; }
 
 @media (max-width: 900px) {
   .grid.two, .grid.three { grid-template-columns: 1fr 1fr; }
