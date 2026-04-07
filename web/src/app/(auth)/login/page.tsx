@@ -1,13 +1,79 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { GlassCard } from "@/components/ui/glass-card";
+import { getApiBase } from "@/lib/api-base";
+import { setAuthToken } from "@/lib/auth-storage";
 
 export default function LoginPage() {
+  const router = useRouter();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [banner, setBanner] = useState<{ type: "error" | "info"; text: string } | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    const u = new URL(window.location.href);
+    const err = u.searchParams.get("error");
+    const notice = u.searchParams.get("notice");
+    if (err) setBanner({ type: "error", text: decodeURIComponent(err) });
+    else if (notice) setBanner({ type: "info", text: decodeURIComponent(notice) });
+    if (err || notice) window.history.replaceState({}, "", "/login");
+  }, []);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    setError("");
+    const base = getApiBase();
+    if (!base) {
+      setError("API URL missing. Set NEXT_PUBLIC_API_URL to your WorkoutOS API (e.g. http://localhost:3000).");
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch(`${base}/api/auth/login`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: email.trim(), password }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (data.code === "PENDING_APPROVAL") {
+          setError("Your account is still waiting for admin approval.");
+        } else {
+          setError(typeof data.error === "string" ? data.error : "Sign-in failed.");
+        }
+        return;
+      }
+      if (data.token) {
+        setAuthToken(data.token);
+        router.push("/dashboard");
+        return;
+      }
+      setError("Unexpected response from server.");
+    } catch {
+      setError("Cannot reach the API. Is the server running and NEXT_PUBLIC_API_URL correct?");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function continueWithGoogle() {
+    const base = getApiBase();
+    if (!base) {
+      setError("API URL missing. Set NEXT_PUBLIC_API_URL so Google sign-in can reach the API.");
+      return;
+    }
+    window.location.href = `${base}/api/auth/google/start`;
+  }
+
   return (
     <div className="grid min-h-screen lg:grid-cols-2">
       <div className="relative hidden overflow-hidden lg:flex">
@@ -60,15 +126,37 @@ export default function LoginPage() {
             <h2 className="text-xl font-semibold tracking-tight">Welcome back</h2>
             <p className="mt-1 text-sm text-muted-foreground">Sign in to continue your training.</p>
 
-            <form className="mt-8 flex flex-col gap-5" onSubmit={(e) => e.preventDefault()}>
+            {banner ? (
+              <p
+                className={`mt-4 rounded-2xl px-4 py-3 text-sm ${
+                  banner.type === "error"
+                    ? "border border-destructive/30 bg-destructive/10 text-destructive"
+                    : "border border-primary/25 bg-primary/10 text-primary"
+                }`}
+                role="status"
+              >
+                {banner.text}
+              </p>
+            ) : null}
+
+            {error ? (
+              <p className="mt-4 rounded-2xl border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive" role="alert">
+                {error}
+              </p>
+            ) : null}
+
+            <form className="mt-6 flex flex-col gap-5" onSubmit={onSubmit}>
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
                 <Input
                   id="email"
                   type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   placeholder="you@example.com"
                   className="h-11 rounded-2xl border-border/80 bg-background/50 transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                   autoComplete="email"
+                  required
                 />
               </div>
               <div className="space-y-2">
@@ -76,26 +164,43 @@ export default function LoginPage() {
                 <Input
                   id="password"
                   type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
                   className="h-11 rounded-2xl border-border/80 bg-background/50 transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40"
                   autoComplete="current-password"
+                  required
                 />
               </div>
 
               <div className="flex justify-end">
-                <Link href="#" className="text-sm font-medium text-primary hover:underline">
+                <button
+                  type="button"
+                  className="text-sm font-medium text-primary hover:underline"
+                  onClick={() =>
+                    setBanner({
+                      type: "info",
+                      text: "Password reset is not wired yet. Ask your admin or use Google sign-in if enabled.",
+                    })
+                  }
+                >
                   Forgot password?
-                </Link>
+                </button>
               </div>
 
-              <Button type="submit" className="h-11 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/20 transition-transform hover:scale-[1.02] active:scale-[0.98]">
-                Log in
+              <Button
+                type="submit"
+                disabled={loading}
+                className="h-11 w-full rounded-2xl text-base font-semibold shadow-lg shadow-primary/20 transition-transform hover:scale-[1.02] active:scale-[0.98]"
+              >
+                {loading ? "Signing in…" : "Log in"}
               </Button>
 
               <Button
                 type="button"
                 variant="outline"
                 className="h-11 w-full rounded-2xl border-border/80 bg-background/30 transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                onClick={continueWithGoogle}
               >
                 <svg className="mr-2 size-4" viewBox="0 0 24 24" aria-hidden>
                   <path
@@ -121,7 +226,7 @@ export default function LoginPage() {
 
             <p className="mt-8 text-center text-sm text-muted-foreground">
               New here?{" "}
-              <Link href="#" className="font-semibold text-primary hover:underline">
+              <Link href="/signup" className="font-semibold text-primary hover:underline">
                 Create an account
               </Link>
             </p>

@@ -2,6 +2,7 @@ import "dotenv/config";
 import express from "express";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+import crypto from "crypto";
 import fs from "fs/promises";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -49,6 +50,16 @@ function adminEmailSet() {
       .map((e) => e.trim().toLowerCase())
       .filter(Boolean)
   );
+}
+
+/** Where the Next.js app lives (OAuth success / error redirects). */
+function clientAppUrl() {
+  return (process.env.CLIENT_APP_URL || "http://localhost:3001").replace(/\/$/, "");
+}
+
+/** Public origin of this API (OAuth redirect_uri must match Google Cloud console). */
+function apiPublicBase() {
+  return (process.env.API_PUBLIC_URL || process.env.APP_PUBLIC_URL || `http://localhost:${port}`).replace(/\/$/, "");
 }
 
 let mailTransportCache;
@@ -437,6 +448,136 @@ app.post("/api/auth/login", async (req, res) => {
     });
   } catch (e) {
     res.status(503).json({ error: "Server unavailable", detail: e.message });
+  }
+});
+
+app.get("/api/auth/google/start", (req, res) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    const msg = encodeURIComponent(
+      "Google sign-in is not configured on the API. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET, or create an account with email."
+    );
+    return res.redirect(`${clientAppUrl()}/login?error=${msg}`);
+  }
+  try {
+    const state = jwt.sign({ purpose: "google_oauth", n: crypto.randomBytes(8).toString("hex") }, jwtSecret(), {
+      expiresIn: "10m",
+    });
+    const redirectUri = `${apiPublicBase()}/api/auth/google/callback`;
+    const url = new URL("https://accounts.google.com/o/oauth2/v2/auth");
+    url.searchParams.set("client_id", process.env.GOOGLE_CLIENT_ID);
+    url.searchParams.set("redirect_uri", redirectUri);
+    url.searchParams.set("response_type", "code");
+    url.searchParams.set("scope", "openid email profile");
+    url.searchParams.set("state", state);
+    res.redirect(url.toString());
+  } catch (e) {
+    res.redirect(`${clientAppUrl()}/login?error=${encodeURIComponent(e.message || "oauth_start_failed")}`);
+  }
+});
+
+app.get("/api/auth/google/callback", async (req, res) => {
+  const fail = (msg) => res.redirect(`${clientAppUrl()}/login?error=${encodeURIComponent(msg)}`);
+  const { code, state, error: oauthError } = req.query;
+
+  if (oauthError) return fail(String(oauthError));
+  if (!code || !state) return fail("Missing OAuth response from Google.");
+
+  try {
+    jwt.verify(String(state), jwtSecret());
+  } catch {
+    return fail("Invalid or expired sign-in attempt. Please try again.");
+  }
+
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return fail("Google OAuth is not configured.");
+  }
+
+  const redirectUri = `${apiPublicBase()}/api/auth/google/callback`;
+
+  let tokenJson;
+  try {
+    const tr = await fetch("https://oauth2.googleapis.com/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        code: String(code),
+        client_id: process.env.GOOGLE_CLIENT_ID,
+        client_secret: process.env.GOOGLE_CLIENT_SECRET,
+        redirect_uri: redirectUri,
+        grant_type: "authorization_code",
+      }),
+    });
+    tokenJson = await tr.json();
+    if (!tr.ok) {
+      console.error("[google oauth token]", tokenJson);
+      return fail(tokenJson.error_description || tokenJson.error || "Could not complete Google sign-in.");
+    }
+  } catch (e) {
+    console.error("[google oauth token]", e);
+    return fail("Could not reach Google. Try again later.");
+  }
+
+  const accessToken = tokenJson.access_token;
+  let profile;
+  try {
+    const ur = await fetch("https://www.googleapis.com/oauth2/v3/userinfo", {
+      headers: { Authorization: `Bearer ${accessToken}` },
+    });
+    profile = await ur.json();
+    if (!ur.ok || !profile.email) {
+      return fail("Could not read your Google account email.");
+    }
+  } catch (e) {
+    console.error("[google userinfo]", e);
+    return fail("Could not read Google profile.");
+  }
+
+  const email = String(profile.email).trim().toLowerCase();
+  const fullName = String(profile.name || profile.email || "User").trim();
+  const admins = adminEmailSet();
+  const bootstrapAdmin = admins.has(email);
+
+  try {
+    const existing = await pool.query(
+      `SELECT id, email, full_name, role, account_status FROM users WHERE email=$1`,
+      [email]
+    );
+    let user = existing.rows[0];
+
+    if (!user) {
+      const randomPass = await bcrypt.hash(crypto.randomUUID(), 10);
+      const role = bootstrapAdmin ? "admin" : "user";
+      const status = bootstrapAdmin ? "approved" : "pending";
+      const ins = await pool.query(
+        `INSERT INTO users(full_name, email, password_hash, role, account_status, approved_at, approved_by)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)
+         RETURNING id, full_name, email, role, account_status`,
+        [fullName, email, randomPass, role, status, bootstrapAdmin ? new Date() : null, null]
+      );
+      user = ins.rows[0];
+      await pool.query(`INSERT INTO user_profiles (user_id) VALUES ($1) ON CONFLICT (user_id) DO NOTHING`, [user.id]);
+    }
+
+    if (user.account_status === "pending") {
+      return res.redirect(
+        `${clientAppUrl()}/login?notice=${encodeURIComponent(
+          "Your account is pending admin approval before you can sign in."
+        )}`
+      );
+    }
+    if (user.account_status === "rejected") {
+      return fail("Your registration was not approved.");
+    }
+
+    const token = jwt.sign(
+      { id: user.id, email: user.email, role: user.role, account_status: user.account_status },
+      jwtSecret(),
+      { expiresIn: "7d" }
+    );
+    res.redirect(`${clientAppUrl()}/auth/callback?token=${encodeURIComponent(token)}`);
+  } catch (e) {
+    console.error("[google oauth user]", e);
+    return fail("Could not create or load your account.");
   }
 });
 
