@@ -36,7 +36,9 @@ docker run -p 3000:3000 --env-file .env workoutos
 ## Option B — Static UI + API on another domain
 
 1. Deploy **only** `server.js` somewhere (Render/Railway/Fly) and note the public URL, e.g. `https://workoutos-api.onrender.com`.
-2. In **`index.html`**, **before** `<script src="app.js">`, set:
+2. Either:
+   - Open the static site and use **“Backend server URL”** on the login card → paste the API origin → **Save & connect** (saved in the browser), **or**
+   - In **`index.html`**, **before** `<script src="app.js">`, set:
 
    ```html
    <script>

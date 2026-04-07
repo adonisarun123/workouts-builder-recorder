@@ -9,6 +9,22 @@ try {
   currentUser = null;
 }
 
+const API_BASE_STORAGE_KEY = "workoutos_api_base";
+
+function applySavedApiBaseFromStorage() {
+  try {
+    const explicit = window.WORKOUTOS_API_BASE && String(window.WORKOUTOS_API_BASE).trim();
+    if (explicit) return;
+    const saved = localStorage.getItem(API_BASE_STORAGE_KEY);
+    if (saved && String(saved).trim()) {
+      window.WORKOUTOS_API_BASE = String(saved).trim().replace(/\/$/, "");
+    }
+  } catch (_) {
+    /* ignore */
+  }
+}
+applySavedApiBaseFromStorage();
+
 const els = {
   authState: document.getElementById("authState"),
   registerNotice: document.getElementById("registerNotice"),
@@ -41,7 +57,7 @@ function showEl(el, on) {
 }
 
 const STATIC_ONLY_HOST_HINT =
-  "This page is hosted without the WorkoutOS API. Deploy the full Node app (server.js) so /api/* routes exist — e.g. Railway, Render, or Fly.io — or run npm run dev locally. If your UI is on a different domain than the API, set window.WORKOUTOS_API_BASE in index.html to your API origin (no trailing slash).";
+  "Static hosting has no /api routes. Deploy server.js (Render, Railway, Fly, etc.) and paste that URL under “Backend server URL” below, then click Save & connect. Or run npm run dev and open http://localhost:3000. You can also set window.WORKOUTOS_API_BASE in index.html before app.js loads.";
 
 function apiUrl(path) {
   const base =
@@ -260,6 +276,13 @@ function setCheckedSlugs(containerSelector, slugs) {
   });
 }
 
+function syncApiBaseUrlField() {
+  const el = document.getElementById("apiBaseUrl");
+  if (!el) return;
+  const b = window.WORKOUTOS_API_BASE && String(window.WORKOUTOS_API_BASE).trim() ? window.WORKOUTOS_API_BASE : "";
+  el.value = b;
+}
+
 async function loadCatalog() {
   catalog = await api("/api/catalog");
   const by = catalog.optionsByCategory || {};
@@ -269,6 +292,79 @@ async function loadCatalog() {
   fillSelect(document.getElementById("occupationActivitySlug"), by.occupation_activity, "Select activity level");
   renderEquipmentAndFocus();
   setAuthState(authToken ? "Checking session…" : "Not signed in.", "muted");
+}
+
+async function bootstrapAfterCatalogLoaded() {
+  setDefaultReadinessInputs();
+  if (authToken) {
+    await refreshMe();
+    await refreshSessions();
+  } else {
+    setAuthState("Not signed in.", "muted");
+  }
+}
+
+function openApiBasePanel() {
+  const p = document.getElementById("apiBasePanel");
+  if (p) p.open = true;
+  syncApiBaseUrlField();
+}
+
+async function saveApiBaseFromForm() {
+  let raw = document.getElementById("apiBaseUrl")?.value?.trim() || "";
+  raw = raw.replace(/\/$/, "");
+  if (!raw) {
+    try {
+      localStorage.removeItem(API_BASE_STORAGE_KEY);
+    } catch (_) {
+      /* ignore */
+    }
+    window.WORKOUTOS_API_BASE = "";
+  } else {
+    if (!/^https?:\/\//i.test(raw)) raw = `https://${raw}`;
+    try {
+      new URL(raw);
+    } catch {
+      setAuthState("Enter a valid URL, e.g. https://your-app.onrender.com (no path, no trailing slash).", "error");
+      return;
+    }
+    try {
+      localStorage.setItem(API_BASE_STORAGE_KEY, raw);
+    } catch (_) {
+      /* ignore */
+    }
+    window.WORKOUTOS_API_BASE = raw;
+  }
+  setAuthState("Connecting to API…", "muted");
+  try {
+    await loadCatalog();
+    await bootstrapAfterCatalogLoaded();
+  } catch (e) {
+    const extra =
+      /No WorkoutOS API|WORKOUTOS_API_BASE|static hosting/i.test(e.message)
+        ? ""
+        : " Confirm the server is running and the database is set up (NEON_DATABASE_URL, migrate, seed).";
+    setAuthState(`${e.message}${extra}`, "error");
+    openApiBasePanel();
+  }
+}
+
+async function clearApiBaseAndRetry() {
+  try {
+    localStorage.removeItem(API_BASE_STORAGE_KEY);
+  } catch (_) {
+    /* ignore */
+  }
+  window.WORKOUTOS_API_BASE = "";
+  syncApiBaseUrlField();
+  setAuthState("Retrying without a saved API URL…", "muted");
+  try {
+    await loadCatalog();
+    await bootstrapAfterCatalogLoaded();
+  } catch (e) {
+    setAuthState(`Could not load catalog: ${e.message}`, "error");
+    openApiBasePanel();
+  }
 }
 
 function applyProfileToForm(profile) {
@@ -898,21 +994,22 @@ function setDefaultReadinessInputs() {
   document.getElementById("pain").value = "false";
 }
 
+const apiBaseSaveBtn = document.getElementById("apiBaseSave");
+const apiBaseClearBtn = document.getElementById("apiBaseClear");
+if (apiBaseSaveBtn) apiBaseSaveBtn.addEventListener("click", () => saveApiBaseFromForm());
+if (apiBaseClearBtn) apiBaseClearBtn.addEventListener("click", () => clearApiBaseAndRetry());
+
 (async function init() {
+  syncApiBaseUrlField();
   try {
     await loadCatalog();
-    setDefaultReadinessInputs();
-    if (authToken) {
-      await refreshMe();
-      await refreshSessions();
-    } else {
-      setAuthState("Not signed in.", "muted");
-    }
+    await bootstrapAfterCatalogLoaded();
   } catch (e) {
     const extra =
       /No WorkoutOS API|WORKOUTOS_API_BASE|static hosting|another domain/i.test(e.message)
         ? ""
         : " If the API is running, check NEON_DATABASE_URL and run db schema + migrate + seed.";
     setAuthState(`Could not load catalog: ${e.message}${extra}`, "error");
+    if (/No WorkoutOS API/i.test(e.message)) openApiBasePanel();
   }
 })();

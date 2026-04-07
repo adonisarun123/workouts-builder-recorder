@@ -41,6 +41,24 @@
         </div>
 
         <div id="authState" class="auth-feedback is-muted" role="status" aria-live="polite">Loading…</div>
+
+        <details class="api-base-panel" id="apiBasePanel">
+          <summary>Backend server URL (use this if you see “No WorkoutOS API”)</summary>
+          <p class="muted small">
+            If this page is on <strong>static</strong> hosting (GitHub Pages, Netlify drop, etc.), there is no <code>/api</code> here. Deploy <code>server.js</code> on
+            Render, Railway, or Fly, then paste that service URL below — <strong>no trailing slash</strong>. Example:
+            <code>https://workoutos-api.onrender.com</code>
+          </p>
+          <label class="auth-label">
+            <span class="auth-label-text">API origin</span>
+            <input type="url" id="apiBaseUrl" inputmode="url" autocomplete="off" placeholder="https://your-api.onrender.com" />
+          </label>
+          <div class="auth-actions">
+            <button type="button" id="apiBaseSave" class="btn btn-primary">Save &amp; connect</button>
+            <button type="button" id="apiBaseClear" class="btn btn-secondary">Clear &amp; use this site only</button>
+          </div>
+        </details>
+
         <p id="registerNotice" class="notice hidden" role="status"></p>
 
         <details class="dev-hint">
@@ -259,7 +277,7 @@
     </main>
 
     <script>
-      window.WORKOUTOS_API_BASE = window.WORKOUTOS_API_BASE || "";
+      if (typeof window.WORKOUTOS_API_BASE === "undefined") window.WORKOUTOS_API_BASE = "";
     </script>
     <script src="app.js"></script>
   </body>

@@ -39,6 +39,34 @@ body { margin: 0; font-family: Inter, system-ui, -apple-system, sans-serif; back
 .auth-feedback.is-info { background: #101c30; border: 1px solid #324a6e; color: #c5d4ec; }
 .auth-feedback.is-success { background: rgba(30, 194, 139, 0.12); border: 1px solid rgba(30, 194, 139, 0.45); color: #8ef0cd; }
 .auth-feedback.is-error { background: rgba(242, 95, 92, 0.12); border: 1px solid rgba(242, 95, 92, 0.5); color: #ffc8c6; }
+.api-base-panel {
+  margin-top: 1rem;
+  padding: 0.85rem 0.95rem;
+  border-radius: 12px;
+  border: 1px solid #3d5a82;
+  background: rgba(61, 125, 217, 0.08);
+}
+.api-base-panel summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: #b8d4f6;
+  list-style: none;
+}
+.api-base-panel summary::-webkit-details-marker {
+  display: none;
+}
+.api-base-panel summary::before {
+  content: "▸ ";
+  opacity: 0.75;
+}
+.api-base-panel[open] summary::before {
+  content: "▾ ";
+}
+.api-base-panel[open] summary {
+  margin-bottom: 0.5rem;
+}
+
 .dev-hint { margin-top: 1.2rem; padding-top: 1rem; border-top: 1px solid #2b3954; }
 .dev-hint summary { cursor: pointer; color: var(--muted); font-size: 0.82rem; user-select: none; list-style: none; }
 .dev-hint summary::-webkit-details-marker { display: none; }
