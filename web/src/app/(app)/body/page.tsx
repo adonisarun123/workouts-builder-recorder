@@ -1,54 +1,184 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
-import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Button } from "@/components/ui/button";
 
-const metrics = [
-  { label: "Weight", value: "182.4", unit: "lb", delta: "-0.6 wk" },
-  { label: "Body fat", value: "14.2", unit: "%", delta: "-0.3 wk" },
-  { label: "Waist", value: "32.0", unit: "in", delta: "stable" },
-  { label: "Hips", value: "39.5", unit: "in", delta: "+0.2 wk" },
-  { label: "Resting HR", value: "54", unit: "bpm", delta: "-2 wk" },
-  { label: "HRV (avg)", value: "68", unit: "ms", delta: "+4 wk" },
+const STORAGE_KEY = "workoutos_body_metrics_v1";
+
+type MetricKey = "weight" | "bodyFat" | "waist" | "hips" | "restingHr" | "hrv";
+
+type BodySnapshot = {
+  values: Record<MetricKey, string>;
+  trends: Record<MetricKey, string>;
+  coachNote: string;
+};
+
+const emptySnapshot = (): BodySnapshot => ({
+  values: {
+    weight: "",
+    bodyFat: "",
+    waist: "",
+    hips: "",
+    restingHr: "",
+    hrv: "",
+  },
+  trends: {
+    weight: "",
+    bodyFat: "",
+    waist: "",
+    hips: "",
+    restingHr: "",
+    hrv: "",
+  },
+  coachNote: "",
+});
+
+const METRICS: {
+  key: MetricKey;
+  label: string;
+  unit: string;
+  inputMode?: "decimal" | "numeric" | "text";
+}[] = [
+  { key: "weight", label: "Weight", unit: "lb", inputMode: "decimal" },
+  { key: "bodyFat", label: "Body fat", unit: "%", inputMode: "decimal" },
+  { key: "waist", label: "Waist", unit: "in", inputMode: "decimal" },
+  { key: "hips", label: "Hips", unit: "in", inputMode: "decimal" },
+  { key: "restingHr", label: "Resting HR", unit: "bpm", inputMode: "numeric" },
+  { key: "hrv", label: "HRV (avg)", unit: "ms", inputMode: "numeric" },
 ];
 
+function parseStored(raw: string | null): BodySnapshot {
+  const base = emptySnapshot();
+  if (!raw) return base;
+  try {
+    const p = JSON.parse(raw) as Partial<BodySnapshot>;
+    if (p.values && typeof p.values === "object") {
+      for (const k of Object.keys(base.values) as MetricKey[]) {
+        if (typeof p.values[k] === "string") base.values[k] = p.values[k];
+      }
+    }
+    if (p.trends && typeof p.trends === "object") {
+      for (const k of Object.keys(base.trends) as MetricKey[]) {
+        if (typeof p.trends[k] === "string") base.trends[k] = p.trends[k];
+      }
+    }
+    if (typeof p.coachNote === "string") base.coachNote = p.coachNote;
+  } catch {
+    /* ignore */
+  }
+  return base;
+}
+
 export default function BodyPage() {
+  const [data, setData] = useState<BodySnapshot>(emptySnapshot);
+  const [hydrated, setHydrated] = useState(false);
+
+  useEffect(() => {
+    setData(parseStored(typeof window !== "undefined" ? localStorage.getItem(STORAGE_KEY) : null));
+    setHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!hydrated) return;
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch {
+      /* ignore */
+    }
+  }, [data, hydrated]);
+
+  function setMetricValue(key: MetricKey, value: string) {
+    setData((d) => ({ ...d, values: { ...d.values, [key]: value } }));
+  }
+
+  function setMetricTrend(key: MetricKey, trend: string) {
+    setData((d) => ({ ...d, trends: { ...d.trends, [key]: trend } }));
+  }
+
+  function clearAll() {
+    setData(emptySnapshot());
+    try {
+      localStorage.removeItem(STORAGE_KEY);
+    } catch {
+      /* ignore */
+    }
+  }
+
   return (
     <div className="mx-auto max-w-6xl space-y-8">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Body metrics</h1>
-        <p className="mt-1 text-muted-foreground">Trends matter more than single weigh-ins.</p>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-2xl font-bold tracking-tight md:text-3xl">Body metrics</h1>
+          <p className="mt-1 text-muted-foreground">Trends matter more than single weigh-ins. Edits save in this browser.</p>
+        </div>
+        <Button type="button" variant="outline" className="h-10 shrink-0 rounded-2xl" onClick={clearAll}>
+          Clear all
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {metrics.map((m, i) => (
-          <motion.div
-            key={m.label}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: i * 0.05 }}
-          >
-            <GlassCard hoverLift className="p-5">
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{m.label}</p>
-              <p className="mt-3 text-3xl font-bold tabular-nums tracking-tight">
-                {m.value}
-                <span className="ml-1 text-lg font-semibold text-muted-foreground">{m.unit}</span>
-              </p>
-              <Badge variant="secondary" className="mt-3 rounded-lg text-[10px] font-medium">
-                {m.delta}
-              </Badge>
-            </GlassCard>
-          </motion.div>
-        ))}
+        {METRICS.map((m, i) => {
+          const id = `body-${m.key}`;
+          const trendId = `body-${m.key}-trend`;
+          return (
+            <motion.div
+              key={m.key}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: i * 0.04 }}
+            >
+              <GlassCard hoverLift className="p-5">
+                <Label htmlFor={id} className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+                  {m.label}
+                </Label>
+                <div className="mt-2 flex flex-wrap items-baseline gap-x-1.5 gap-y-1">
+                  <Input
+                    id={id}
+                    type="text"
+                    inputMode={m.inputMode}
+                    autoComplete="off"
+                    value={data.values[m.key]}
+                    onChange={(e) => setMetricValue(m.key, e.target.value)}
+                    placeholder="—"
+                    className="h-auto min-h-0 max-w-[12rem] border-0 bg-transparent px-0 py-0.5 text-3xl font-bold tabular-nums tracking-tight shadow-none focus-visible:ring-0 focus-visible:ring-offset-0 md:text-3xl"
+                  />
+                  <span className="text-lg font-semibold text-muted-foreground">{m.unit}</span>
+                </div>
+                <div className="mt-3">
+                  <Label htmlFor={trendId} className="sr-only">
+                    {m.label} trend
+                  </Label>
+                  <Input
+                    id={trendId}
+                    type="text"
+                    value={data.trends[m.key]}
+                    onChange={(e) => setMetricTrend(m.key, e.target.value)}
+                    placeholder="Trend vs last log (optional)"
+                    className="h-9 rounded-xl border-border/60 bg-muted/20 text-xs"
+                  />
+                </div>
+              </GlassCard>
+            </motion.div>
+          );
+        })}
       </div>
 
       <GlassCard className="p-5">
-        <h2 className="text-sm font-semibold">Coach note</h2>
-        <p className="mt-2 text-sm text-muted-foreground">
-          Weight is drifting down slightly while strength is up — good sign you are recomping. Keep protein consistent and
-          avoid cutting volume during this block.
-        </p>
+        <Label htmlFor="coach-note" className="text-sm font-semibold">
+          Coach note
+        </Label>
+        <Textarea
+          id="coach-note"
+          value={data.coachNote}
+          onChange={(e) => setData((d) => ({ ...d, coachNote: e.target.value }))}
+          placeholder="Private notes or cues from your coach (optional)."
+          className="mt-3 min-h-[100px] rounded-2xl border-border/60 bg-background/40"
+        />
       </GlassCard>
     </div>
   );
