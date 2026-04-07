@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Label } from "@/components/ui/label";
@@ -9,8 +9,50 @@ import { Switch } from "@/components/ui/switch";
 import { Separator } from "@/components/ui/separator";
 import { ThemeToggle } from "@/components/theme-toggle";
 
+const NOTIF_STORAGE_KEY = "workoutos_notification_prefs";
+
+type NotificationPrefs = {
+  workoutReminders: boolean;
+  recoveryCheckIn: boolean;
+  weeklyDigest: boolean;
+};
+
+const defaultNotificationPrefs: NotificationPrefs = {
+  workoutReminders: true,
+  recoveryCheckIn: true,
+  weeklyDigest: false,
+};
+
 export default function SettingsPage() {
   const [units, setUnits] = useState<"imperial" | "metric">("imperial");
+  const [notifPrefs, setNotifPrefs] = useState<NotificationPrefs>(defaultNotificationPrefs);
+  const [notifHydrated, setNotifHydrated] = useState(false);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(NOTIF_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw) as Partial<NotificationPrefs>;
+        setNotifPrefs((prev) => ({
+          workoutReminders: typeof parsed.workoutReminders === "boolean" ? parsed.workoutReminders : prev.workoutReminders,
+          recoveryCheckIn: typeof parsed.recoveryCheckIn === "boolean" ? parsed.recoveryCheckIn : prev.recoveryCheckIn,
+          weeklyDigest: typeof parsed.weeklyDigest === "boolean" ? parsed.weeklyDigest : prev.weeklyDigest,
+        }));
+      }
+    } catch {
+      /* ignore */
+    }
+    setNotifHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!notifHydrated) return;
+    try {
+      localStorage.setItem(NOTIF_STORAGE_KEY, JSON.stringify(notifPrefs));
+    } catch {
+      /* ignore */
+    }
+  }, [notifPrefs, notifHydrated]);
 
   return (
     <div className="mx-auto max-w-2xl space-y-8">
@@ -104,18 +146,45 @@ export default function SettingsPage() {
 
           <div className="space-y-4">
             <h2 className="text-sm font-semibold">Notifications</h2>
-            {[
-              { id: "n1", label: "Workout reminders", desc: "Morning nudge on training days" },
-              { id: "n2", label: "Recovery check-in", desc: "Quick readiness prompt" },
-              { id: "n3", label: "Weekly digest", desc: "Volume, adherence, and insights" },
-            ].map((n) => (
-              <div key={n.id} className="flex items-center justify-between gap-4 rounded-2xl border border-border/50 bg-background/30 px-4 py-3">
-                <div>
+            <p className="text-xs text-muted-foreground">
+              Preferences are saved in this browser. Tap the row or the switch to toggle.
+            </p>
+            {(
+              [
+                {
+                  id: "notif-workout",
+                  key: "workoutReminders" as const,
+                  label: "Workout reminders",
+                  desc: "Morning nudge on training days",
+                },
+                {
+                  id: "notif-recovery",
+                  key: "recoveryCheckIn" as const,
+                  label: "Recovery check-in",
+                  desc: "Quick readiness prompt",
+                },
+                {
+                  id: "notif-digest",
+                  key: "weeklyDigest" as const,
+                  label: "Weekly digest",
+                  desc: "Volume, adherence, and insights",
+                },
+              ] as const
+            ).map((n) => (
+              <label
+                key={n.id}
+                className="flex cursor-pointer items-center justify-between gap-4 rounded-2xl border border-border/50 bg-background/30 px-4 py-3 transition-colors hover:bg-background/50 has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-primary/30"
+              >
+                <div className="min-w-0 flex-1">
                   <p className="text-sm font-medium">{n.label}</p>
                   <p className="text-xs text-muted-foreground">{n.desc}</p>
                 </div>
-                <Switch defaultChecked={n.id !== "n3"} />
-              </div>
+                <Switch
+                  id={n.id}
+                  checked={notifPrefs[n.key]}
+                  onCheckedChange={(checked) => setNotifPrefs((p) => ({ ...p, [n.key]: checked }))}
+                />
+              </label>
             ))}
           </div>
         </GlassCard>
