@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -43,14 +44,13 @@ export function AppHeader() {
           <div className="hidden items-center gap-2 rounded-2xl border border-border/60 bg-card/40 px-3 py-1.5 sm:flex">
             <Sparkles className="size-4 text-primary" />
             <span className="text-xs font-medium text-muted-foreground">Readiness</span>
-            <Badge variant="secondary" className="rounded-lg font-mono tabular-nums">
-              78
+            <Badge variant="secondary" className="rounded-lg font-mono tabular-nums text-muted-foreground">
+              —
             </Badge>
           </div>
 
-          <Button variant="ghost" size="icon-sm" className="relative rounded-xl" aria-label="Notifications">
+          <Button variant="ghost" size="icon-sm" className="rounded-xl" aria-label="Notifications">
             <Bell className="size-[18px]" />
-            <span className="absolute right-1.5 top-1.5 size-2 rounded-full bg-primary" />
           </Button>
 
           <Link
@@ -73,14 +73,16 @@ export function AppHeader() {
               </Avatar>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-52 rounded-2xl">
-              <DropdownMenuLabel>Account</DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem className="rounded-xl" onClick={() => router.push("/settings")}>
-                Settings
-              </DropdownMenuItem>
-              <DropdownMenuItem className="rounded-xl" onClick={() => router.push("/login")}>
-                Log out
-              </DropdownMenuItem>
+              <DropdownMenuGroup>
+                <DropdownMenuLabel>Account</DropdownMenuLabel>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem className="rounded-xl" onClick={() => router.push("/settings")}>
+                  Settings
+                </DropdownMenuItem>
+                <DropdownMenuItem className="rounded-xl" onClick={() => router.push("/login")}>
+                  Log out
+                </DropdownMenuItem>
+              </DropdownMenuGroup>
             </DropdownMenuContent>
           </DropdownMenu>
         </div>
