@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workout Builder & Recorder</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <h1>Workout Builder & Recorder</h1>
+      <p class="subtitle">Neon-backed logging, individual login, per-user memory markdown, and AI-enhanced feedback.</p>
+    </header>
+
+    <main class="container">
+      <section class="card" id="auth">
+        <h2>0) Individual Account Login</h2>
+        <div class="grid two">
+          <label>Full name (register) <input id="authName" placeholder="Alex Carter" /></label>
+          <label>Email <input id="authEmail" type="email" placeholder="alex@email.com" /></label>
+          <label>Password <input id="authPassword" type="password" /></label>
+          <div class="row">
+            <button id="registerBtn">Register</button>
+            <button id="loginBtn">Login</button>
+          </div>
+        </div>
+        <p id="authState" class="muted">Not logged in.</p>
+      </section>
+
+      <section class="card" id="onboarding">
+        <h2>1) Onboarding</h2>
+        <div class="grid two">
+          <label>Full name <input id="name" placeholder="Alex Carter" /></label>
+          <label>Age <input id="age" type="number" min="12" max="90" value="28" /></label>
+          <label>Goal
+            <select id="goal">
+              <option>Muscle Gain</option>
+              <option>Strength Gain</option>
+              <option>Fat Loss</option>
+              <option>Recomposition</option>
+            </select>
+          </label>
+          <label>Experience
+            <select id="experience">
+              <option>Beginner</option>
+              <option>Intermediate</option>
+              <option>Advanced</option>
+            </select>
+          </label>
+          <label>Days / week <input id="days" type="number" min="2" max="7" value="4" /></label>
+          <label>Max session duration (min) <input id="duration" type="number" min="20" max="180" value="60" /></label>
+          <label>Equipment
+            <select id="equipment">
+              <option>Commercial Gym</option>
+              <option>Home Gym</option>
+              <option>Minimal Equipment</option>
+            </select>
+          </label>
+          <label>Injury / limitations <input id="injury" placeholder="None" /></label>
+        </div>
+        <div class="row">
+          <button id="saveProfile">Save Profile</button>
+          <button id="generatePlan">Generate Workout Plan</button>
+        </div>
+      </section>
+
+      <section class="card" id="readiness">
+        <h2>2) Daily Readiness</h2>
+        <div class="grid three">
+          <label>Sleep (hours) <input id="sleep" type="number" step="0.5" value="7" /></label>
+          <label>Energy (1-10) <input id="energy" type="number" min="1" max="10" value="7" /></label>
+          <label>Soreness (1-10) <input id="soreness" type="number" min="1" max="10" value="4" /></label>
+          <label>Stress (1-10) <input id="stress" type="number" min="1" max="10" value="5" /></label>
+          <label>Motivation (1-10) <input id="motivation" type="number" min="1" max="10" value="8" /></label>
+          <label>Pain today
+            <select id="pain"><option>No</option><option>Yes</option></select>
+          </label>
+        </div>
+      </section>
+
+      <section class="card" id="planSection">
+        <h2>3) Planned Workout</h2>
+        <div class="tableWrap">
+          <table id="planTable">
+            <thead>
+              <tr><th>Exercise</th><th>Sets</th><th>Reps</th><th>Planned Weight</th><th>RIR</th><th>Rest</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card" id="logSection">
+        <h2>4) Workout Logging</h2>
+        <div class="tableWrap">
+          <table id="logTable">
+            <thead>
+              <tr><th>Exercise</th><th>Target</th><th>Actual Reps</th><th>Actual Weight</th><th>Actual RIR</th><th>Completed</th><th>Notes</th></tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+        <button id="submitSession">Submit Session to Neon</button>
+      </section>
+
+      <section class="card">
+        <h2>5) Post-Session Feedback</h2>
+        <div id="feedback" class="feedback empty">No session submitted yet.</div>
+      </section>
+
+      <section class="card">
+        <h2>6) Dashboard</h2>
+        <div class="stats" id="dashboard"></div>
+      </section>
+    </main>
+
+    <script src="app.js"></script>
+  </body>
+</html>

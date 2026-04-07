@@ -1,0 +1,44 @@
+:root {
+  --card: #111a2b;
+  --text: #e7edf8;
+  --muted: #95a3bf;
+  --good: #1ec28b;
+  --warn: #f2b23b;
+  --bad: #f25f5c;
+}
+* { box-sizing: border-box; }
+body { margin: 0; font-family: Inter, system-ui, sans-serif; background: linear-gradient(180deg,#0b1220,#121b2e 35%,#0f1829); color: var(--text); }
+.topbar { padding: 1rem 1.2rem; border-bottom: 1px solid #2b3954; }
+.topbar h1 { margin: 0 0 .2rem; font-size: clamp(1.1rem, 3vw, 1.8rem); }
+.subtitle { margin: 0; color: var(--muted); }
+.container { max-width: 1200px; margin: 1rem auto 4rem; padding: 0 .9rem; display: grid; gap: 1rem; }
+.card { background: var(--card); border: 1px solid #2a3a58; border-radius: 14px; padding: 1rem; }
+.grid { display: grid; gap: .7rem; }
+.grid.two { grid-template-columns: repeat(2, minmax(0,1fr)); }
+.grid.three { grid-template-columns: repeat(3, minmax(0,1fr)); }
+label { display: grid; gap: .35rem; font-size: .88rem; }
+input, select, button { border-radius: 10px; border: 1px solid #384b6d; background: #0d1627; color: var(--text); padding: .55rem .65rem; }
+button { cursor: pointer; background: #1a2f56; border-color: #4269a3; }
+.tableWrap { overflow:auto; }
+table { width:100%; border-collapse: collapse; min-width: 760px; }
+th, td { border-bottom: 1px solid #2b3c5b; padding: .55rem .4rem; text-align:left; font-size:.9rem; }
+.feedback { padding: .8rem; border-radius: 10px; background: #13223f; border: 1px solid #375688; line-height: 1.45; }
+.feedback.empty { color: var(--muted); }
+.stats { display:grid; gap:.7rem; grid-template-columns: repeat(4, minmax(0,1fr)); }
+.stat { padding:.8rem; border-radius:10px; background:#0d1628; border:1px solid #324463; }
+.stat .label{ color:var(--muted); font-size:.8rem; }
+.stat .value{ font-size:1.15rem; font-weight:700; margin-top:.2rem; }
+.row { display:flex; gap:.6rem; flex-wrap: wrap; align-items:center; }
+.muted { color: var(--muted); }
+.tag-good{color:var(--good)} .tag-warn{color:var(--warn)} .tag-bad{color:var(--bad)}
+
+@media (max-width: 900px) {
+  .grid.two, .grid.three { grid-template-columns: 1fr 1fr; }
+  .stats { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 620px) {
+  .grid.two, .grid.three { grid-template-columns: 1fr; }
+  .stats { grid-template-columns: 1fr; }
+  .card { padding: .8rem; }
+  th, td { font-size: .82rem; }
+}
