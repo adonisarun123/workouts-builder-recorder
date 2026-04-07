@@ -1,6 +1,8 @@
 const plan = [];
 const sessions = [];
 let catalog = null;
+/** False until a successful `/api/catalog` fetch; blocks “logged-in” UI so API errors stay visible. */
+let apiCatalogOk = false;
 let authToken = localStorage.getItem("token") || "";
 let currentUser = null;
 try {
@@ -26,6 +28,10 @@ function applySavedApiBaseFromStorage() {
 applySavedApiBaseFromStorage();
 
 const els = {
+  auth: document.getElementById("auth"),
+  authFormBlock: document.getElementById("authFormBlock"),
+  appNav: document.getElementById("appNav"),
+  navAdminLink: document.getElementById("navAdminLink"),
   authState: document.getElementById("authState"),
   registerNotice: document.getElementById("registerNotice"),
   adminPanel: document.getElementById("adminPanel"),
@@ -39,6 +45,196 @@ const els = {
   planMeta: document.getElementById("planMeta"),
   adminCatalogPanel: document.getElementById("adminCatalogPanel"),
 };
+
+const SPA_PATHS = new Set(["/", "/login", "/profile", "/workout", "/dashboard", "/admin"]);
+
+function getPath() {
+  let p = window.location.pathname || "/";
+  p = p.split("?")[0];
+  if (p.length > 1 && p.endsWith("/")) p = p.slice(0, -1);
+  return p || "/";
+}
+
+function normalizePathname(p) {
+  if (!p || p === "/") return "/";
+  return p.length > 1 && p.endsWith("/") ? p.slice(0, -1) : p;
+}
+
+function userIsApproved() {
+  return Boolean(currentUser && currentUser.account_status === "approved");
+}
+
+function userIsAdmin() {
+  return Boolean(currentUser && currentUser.role === "admin" && userIsApproved());
+}
+
+function hideAllAppPanels() {
+  showEl(els.appPanel, false);
+  showEl(els.workPanel, false);
+  showEl(els.planSection, false);
+  showEl(els.logSection, false);
+  showEl(els.feedbackSection, false);
+  showEl(els.dashboardSection, false);
+  showEl(els.adminPanel, false);
+  showEl(els.adminCatalogPanel, false);
+}
+
+function updateNavActive(pathNorm) {
+  document.querySelectorAll(".nav-link[data-path]").forEach((a) => {
+    a.classList.toggle("is-active", a.getAttribute("data-path") === pathNorm);
+  });
+}
+
+function navigate(path, { replace = false } = {}) {
+  let url;
+  try {
+    url = new URL(path, window.location.origin);
+  } catch {
+    return;
+  }
+  if (url.origin !== window.location.origin) return;
+  const nextPath = normalizePathname(url.pathname);
+  const next = `${nextPath}${url.search || ""}`;
+  if (replace) window.history.replaceState({}, "", next);
+  else window.history.pushState({}, "", next);
+  void applyRoute();
+}
+
+async function applyRoute() {
+  let pathNorm = getPath();
+
+  if (!apiCatalogOk) {
+    if (pathNorm === "/" || pathNorm !== "/login") {
+      navigate("/login", { replace: true });
+      return;
+    }
+    showEl(els.auth, true);
+    if (els.authFormBlock) showEl(els.authFormBlock, true);
+    showEl(els.appNav, false);
+    hideAllAppPanels();
+    updateNavActive("/login");
+    return;
+  }
+
+  if (pathNorm === "/") {
+    if (!authToken) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    if (!userIsApproved()) {
+      navigate("/login", { replace: true });
+      return;
+    }
+    navigate("/profile", { replace: true });
+    return;
+  }
+
+  if (!SPA_PATHS.has(pathNorm)) {
+    navigate("/profile", { replace: true });
+    return;
+  }
+
+  if (!authToken) {
+    if (pathNorm !== "/login") {
+      navigate("/login", { replace: true });
+      return;
+    }
+    showEl(els.auth, true);
+    if (els.authFormBlock) showEl(els.authFormBlock, true);
+    showEl(els.appNav, false);
+    hideAllAppPanels();
+    updateNavActive("/login");
+    return;
+  }
+
+  if (!userIsApproved()) {
+    if (pathNorm !== "/login") {
+      navigate("/login", { replace: true });
+      return;
+    }
+    showEl(els.auth, true);
+    if (els.authFormBlock) showEl(els.authFormBlock, true);
+    showEl(els.appNav, false);
+    hideAllAppPanels();
+    updateNavActive("/login");
+    return;
+  }
+
+  if (pathNorm === "/login") {
+    navigate("/profile", { replace: true });
+    return;
+  }
+
+  showEl(els.auth, false);
+  showEl(els.appNav, true);
+  if (els.navAdminLink) showEl(els.navAdminLink, userIsAdmin());
+
+  if (pathNorm === "/admin" && !userIsAdmin()) {
+    navigate("/profile", { replace: true });
+    return;
+  }
+
+  hideAllAppPanels();
+
+  if (pathNorm === "/profile") {
+    showEl(els.appPanel, true);
+    updateNavActive("/profile");
+    return;
+  }
+
+  if (pathNorm === "/workout") {
+    showEl(els.workPanel, true);
+    showEl(els.planSection, plan.length > 0);
+    showEl(els.logSection, plan.length > 0);
+    showEl(els.feedbackSection, true);
+    updateNavActive("/workout");
+    return;
+  }
+
+  if (pathNorm === "/dashboard") {
+    showEl(els.dashboardSection, true);
+    updateNavActive("/dashboard");
+    return;
+  }
+
+  if (pathNorm === "/admin") {
+    showEl(els.adminPanel, true);
+    showEl(els.adminCatalogPanel, true);
+    updateNavActive("/admin");
+    try {
+      await refreshAdminQueue();
+      await refreshAdminCatalog();
+    } catch {
+      /* refreshMe or prior errors may leave tables empty */
+    }
+    return;
+  }
+
+  navigate("/profile", { replace: true });
+}
+
+document.addEventListener("click", (e) => {
+  const a = e.target.closest("a[href^='/']");
+  if (!a || a.target === "_blank" || e.metaKey || e.ctrlKey || e.shiftKey) return;
+  const href = a.getAttribute("href");
+  if (!href || href.startsWith("//")) return;
+  let u;
+  try {
+    u = new URL(href, window.location.origin);
+  } catch {
+    return;
+  }
+  if (u.origin !== window.location.origin) return;
+  if (u.pathname.startsWith("/api")) return;
+  const pn = normalizePathname(u.pathname);
+  if (!SPA_PATHS.has(pn)) return;
+  e.preventDefault();
+  navigate(pn + (u.search || ""));
+});
+
+window.addEventListener("popstate", () => {
+  void applyRoute();
+});
 
 const authFeedbackClass = {
   error: "auth-feedback is-error",
@@ -284,14 +480,20 @@ function syncApiBaseUrlField() {
 }
 
 async function loadCatalog() {
-  catalog = await api("/api/catalog");
-  const by = catalog.optionsByCategory || {};
-  fillSelect(document.getElementById("goalSlug"), by.goal, "Select goal");
-  fillSelect(document.getElementById("experienceSlug"), by.experience, "Select experience");
-  fillSelect(document.getElementById("sexSlug"), by.sex, "Prefer not to say");
-  fillSelect(document.getElementById("occupationActivitySlug"), by.occupation_activity, "Select activity level");
-  renderEquipmentAndFocus();
-  setAuthState(authToken ? "Checking session…" : "Not signed in.", "muted");
+  try {
+    catalog = await api("/api/catalog");
+    const by = catalog.optionsByCategory || {};
+    fillSelect(document.getElementById("goalSlug"), by.goal, "Select goal");
+    fillSelect(document.getElementById("experienceSlug"), by.experience, "Select experience");
+    fillSelect(document.getElementById("sexSlug"), by.sex, "Prefer not to say");
+    fillSelect(document.getElementById("occupationActivitySlug"), by.occupation_activity, "Select activity level");
+    renderEquipmentAndFocus();
+    setAuthState(authToken ? "Checking session…" : "Not signed in.", "muted");
+    apiCatalogOk = true;
+  } catch (e) {
+    apiCatalogOk = false;
+    throw e;
+  }
 }
 
 async function bootstrapAfterCatalogLoaded() {
@@ -301,6 +503,7 @@ async function bootstrapAfterCatalogLoaded() {
     await refreshSessions();
   } else {
     setAuthState("Not signed in.", "muted");
+    await applyRoute();
   }
 }
 
@@ -346,6 +549,7 @@ async function saveApiBaseFromForm() {
         : " Confirm the server is running and the database is set up (NEON_DATABASE_URL, migrate, seed).";
     setAuthState(`${e.message}${extra}`, "error");
     openApiBasePanel();
+    await applyRoute();
   }
 }
 
@@ -364,6 +568,7 @@ async function clearApiBaseAndRetry() {
   } catch (e) {
     setAuthState(`Could not load catalog: ${e.message}`, "error");
     openApiBasePanel();
+    await applyRoute();
   }
 }
 
@@ -408,15 +613,9 @@ function applyProfileToForm(profile) {
 
 async function refreshMe() {
   if (!authToken) {
-    showEl(els.appPanel, false);
-    showEl(els.workPanel, false);
-    showEl(els.planSection, false);
-    showEl(els.logSection, false);
-    showEl(els.feedbackSection, false);
-    showEl(els.dashboardSection, false);
-    showEl(els.adminPanel, false);
-    showEl(els.adminCatalogPanel, false);
+    currentUser = null;
     setAuthState("Not signed in.", "muted");
+    await applyRoute();
     return;
   }
   try {
@@ -426,22 +625,6 @@ async function refreshMe() {
     document.getElementById("fullName").value = data.user.full_name;
     applyProfileToForm({ ...data.profile, full_name_hint: data.user.full_name });
 
-    const approved = data.user.account_status === "approved";
-    showEl(els.appPanel, approved);
-    showEl(els.workPanel, approved);
-    showEl(els.planSection, approved && plan.length > 0);
-    showEl(els.logSection, approved && plan.length > 0);
-    showEl(els.feedbackSection, approved);
-    showEl(els.dashboardSection, approved);
-
-    const isAdmin = data.user.role === "admin" && approved;
-    showEl(els.adminPanel, isAdmin);
-    showEl(els.adminCatalogPanel, isAdmin);
-    if (isAdmin) {
-      await refreshAdminQueue();
-      await refreshAdminCatalog();
-    }
-
     setAuthState(`Signed in as ${data.user.full_name} (${data.user.account_status}).`, "success");
   } catch (e) {
     if (e.message === "Invalid token" || e.message === "Missing token") {
@@ -450,13 +633,11 @@ async function refreshMe() {
       localStorage.removeItem("user");
       currentUser = null;
       setAuthState("Session expired. Please sign in again.", "error");
-      showEl(els.appPanel, false);
-      showEl(els.adminPanel, false);
-      showEl(els.adminCatalogPanel, false);
     } else {
       setAuthState(`Could not load profile: ${e.message}`, "error");
     }
   }
+  await applyRoute();
 }
 
 async function refreshAdminQueue() {
@@ -714,7 +895,7 @@ document.getElementById("registerBtn").addEventListener("click", async () => {
       els.registerNotice.className = "notice notice-positive";
       els.registerNotice.classList.remove("hidden");
       setAuthState("Registered — awaiting approval before you can sign in.", "success");
-      showEl(els.appPanel, false);
+      await applyRoute();
       return;
     }
     authToken = data.token;
@@ -761,7 +942,7 @@ document.getElementById("loginBtn").addEventListener("click", async () => {
   }
 });
 
-document.getElementById("logoutBtn").addEventListener("click", () => {
+function performLogout() {
   authToken = "";
   currentUser = null;
   localStorage.removeItem("token");
@@ -769,15 +950,12 @@ document.getElementById("logoutBtn").addEventListener("click", () => {
   plan.length = 0;
   els.registerNotice.classList.add("hidden");
   setAuthState("Signed out.", "muted");
-  showEl(els.appPanel, false);
-  showEl(els.workPanel, false);
-  showEl(els.planSection, false);
-  showEl(els.logSection, false);
-  showEl(els.feedbackSection, false);
-  showEl(els.dashboardSection, false);
-  showEl(els.adminPanel, false);
-  showEl(els.adminCatalogPanel, false);
-});
+  navigate("/login", { replace: true });
+}
+
+document.getElementById("logoutBtn").addEventListener("click", performLogout);
+const navLogoutBtn = document.getElementById("navLogoutBtn");
+if (navLogoutBtn) navLogoutBtn.addEventListener("click", performLogout);
 
 document.getElementById("saveProfile").addEventListener("click", async () => {
   if (!authToken) return alert("Sign in first.");
@@ -821,8 +999,7 @@ document.getElementById("generatePlan").addEventListener("click", async () => {
     els.planMeta.textContent = `Built ${plan.length} movements from your profile (server target ${data.meta?.targetCount ?? "—"}). Loads are suggestions — adjust to how you feel.`;
     renderPlan();
     renderLogTable();
-    showEl(els.planSection, true);
-    showEl(els.logSection, true);
+    navigate("/workout");
   } catch (e) {
     alert(e.message);
   }
@@ -1011,5 +1188,6 @@ if (apiBaseClearBtn) apiBaseClearBtn.addEventListener("click", () => clearApiBas
         : " If the API is running, check NEON_DATABASE_URL and run db schema + migrate + seed.";
     setAuthState(`Could not load catalog: ${e.message}${extra}`, "error");
     if (/No WorkoutOS API/i.test(e.message)) openApiBasePanel();
+    await applyRoute();
   }
 })();

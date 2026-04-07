@@ -33,6 +33,11 @@ app.use((req, res, next) => {
 
 app.use(express.static(__dirname));
 
+const SPA_HTML = path.join(__dirname, "index.html");
+app.get(["/login", "/profile", "/workout", "/dashboard", "/admin"], (_req, res) => {
+  res.sendFile(SPA_HTML);
+});
+
 function jwtSecret() {
   return process.env.JWT_SECRET || "dev-secret";
 }
